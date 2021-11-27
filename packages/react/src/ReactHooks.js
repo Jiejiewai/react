@@ -121,6 +121,7 @@ export function useLayoutEffect(
   return dispatcher.useLayoutEffect(create, deps);
 }
 
+// useCallback 如果存储函数不执行函数，useMemo会执行，useMemo会执行一段逻辑
 export function useCallback<T>(
   callback: T,
   deps: Array<mixed> | void | null,
