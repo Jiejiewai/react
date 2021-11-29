@@ -20,6 +20,10 @@ import ReactCurrentDispatcher from './ReactCurrentDispatcher';
 type BasicStateAction<S> = (S => S) | S;
 type Dispatch<A> = A => void;
 
+
+// 好多hook啊啊啊
+
+// 确保hook在函数组件内被调用
 function resolveDispatcher() {
   const dispatcher = ReactCurrentDispatcher.current;
   if (__DEV__) {
@@ -37,6 +41,10 @@ function resolveDispatcher() {
   // Will result in a null access error if accessed outside render phase. We
   // intentionally don't throw our own error because this is in a hot path.
   // Also helps ensure this is inlined.
+  /**
+   * 如果在渲染阶段之外访问，将导致null访问错误。
+   * 我们故意不抛出我们自己的错误，因为这是在热路径中。还有助于确保这是内联的。
+   */
   return ((dispatcher: any): Dispatcher);
 }
 
@@ -159,6 +167,10 @@ export function useDebugValue<T>(
 
 export const emptyObject = {};
 
+/**
+ * 
+ * React18的新属性
+ */
 export function useTransition(): [boolean, (() => void) => void] {
   const dispatcher = resolveDispatcher();
   return dispatcher.useTransition();

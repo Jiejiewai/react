@@ -39,6 +39,10 @@ function hasValidRef(config) {
   return config.ref !== undefined;
 }
 
+/** 
+ * Object.getOwnPropertyDescriptor() 方法返回指定对象上一个自有属性对应的属性描述符。
+ * +（自有属性指的是直接赋予该对象的属性，不需要从原型链上进行查找的属性）
+*/
 function hasValidKey(config) {
   if (__DEV__) {
     if (hasOwnProperty.call(config, 'key')) {
@@ -358,16 +362,19 @@ export function jsxDEV(type, config, maybeKey, source, self) {
  * Create and return a new ReactElement of the given type.
  * See https://reactjs.org/docs/react-api.html#createelement
  */
+// type存放element的类型
+// config 存放各种属性
+// children 存放子组件
 export function createElement(type, config, children) {
   let propName;
 
   // Reserved names are extracted
   const props = {};
 
-  let key = null;
-  let ref = null;
-  let self = null;
-  let source = null;
+  let key = null;// 用于优化渲染
+  let ref = null;// 存放ref
+  let self = null; // 不懂干啥用的
+  let source = null; // 同上
 
   if (config != null) {
     if (hasValidRef(config)) {
@@ -481,6 +488,7 @@ export function cloneAndReplaceKey(oldElement, newKey) {
 /**
  * Clone and return a new ReactElement using element as the starting point.
  * See https://reactjs.org/docs/react-api.html#cloneelement
+ * 复制了各种属性
  */
 export function cloneElement(element, config, children) {
   if (element === null || element === undefined) {
@@ -567,6 +575,7 @@ export function isValidElement(object) {
   return (
     typeof object === 'object' &&
     object !== null &&
+    // 根据$$typeof这个属性来判断是否是React的元素
     object.$$typeof === REACT_ELEMENT_TYPE
   );
 }
