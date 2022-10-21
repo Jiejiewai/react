@@ -11,12 +11,12 @@
   "files": [
     "LICENSE",
     "README.md",
-    "build-info.json",
     "index.js",
     "plugin.js",
-    "writer.js",
-    "writer.browser.server.js",
-    "writer.node.server.js",
+    "client.js",
+    "server.js",
+    "server.browser.js",
+    "server.node.js",
     "node-register.js",
     "cjs/",
     "umd/",
@@ -25,17 +25,19 @@
   "exports": {
     ".": "./index.js",
     "./plugin": "./plugin.js",
-    "./writer": {
+    "./client": "./client.js",
+    "./server": {
       "react-server": {
-        "node": "./writer.node.server.js",
-        "browser": "./writer.browser.server.js"
+        "node": "./server.node.js",
+        "browser": "./server.browser.js"
       },
-      "default": "./writer.js"
+      "default": "./server.js"
     },
-    "./writer.node.server": "./writer.node.server.js",
-    "./writer.browser.server": "./writer.browser.server.js",
+    "./server.node": "./server.node.js",
+    "./server.browser": "./server.browser.js",
     "./node-loader": "./esm/react-server-dom-webpack-node-loader.js",
     "./node-register": "./node-register.js",
+    "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "main": "index.js",
@@ -55,8 +57,7 @@
   "dependencies": {
     "acorn": "^6.2.1",
     "neo-async": "^2.6.1",
-    "loose-envify": "^1.1.0",
-    "object-assign": "^4.1.1"
+    "loose-envify": "^1.1.0"
   },
   "browserify": {
     "transform": [

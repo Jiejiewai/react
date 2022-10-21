@@ -25,6 +25,7 @@ const bundleTypes = {
   RN_FB_DEV: 'RN_FB_DEV',
   RN_FB_PROD: 'RN_FB_PROD',
   RN_FB_PROFILING: 'RN_FB_PROFILING',
+  BROWSER_SCRIPT: 'BROWSER_SCRIPT',
 };
 
 const {
@@ -45,6 +46,7 @@ const {
   RN_FB_DEV,
   RN_FB_PROD,
   RN_FB_PROFILING,
+  BROWSER_SCRIPT,
 } = bundleTypes;
 
 const moduleTypes = {
@@ -88,7 +90,8 @@ const bundles = [
   {
     bundleTypes: [NODE_DEV, NODE_PROD],
     moduleType: ISOMORPHIC,
-    entry: 'react/unstable-shared-subset',
+    entry: 'react/src/ReactSharedSubset.js',
+    name: 'react.shared-subset',
     global: 'React',
     minifyWithProdErrorCodes: true,
     wrapWithModuleBoundaries: false,
@@ -245,12 +248,13 @@ const bundles = [
     externals: ['react', 'react-dom'],
   },
 
-  // TODO: We don't use this bundle anymore
   /******* React DOM - www - Testing *******/
   {
     moduleType: RENDERER,
-    bundleTypes: [FB_WWW_DEV, FB_WWW_PROD, NODE_DEV, NODE_PROD],
-    entry: 'react-dom/testing',
+    bundleTypes: __EXPERIMENTAL__
+      ? [FB_WWW_DEV, FB_WWW_PROD, NODE_DEV, NODE_PROD]
+      : [FB_WWW_DEV, FB_WWW_PROD],
+    entry: 'react-dom/unstable_testing',
     global: 'ReactDOMTesting',
     minifyWithProdErrorCodes: true,
     wrapWithModuleBoundaries: false,
@@ -259,16 +263,21 @@ const bundles = [
 
   /******* React DOM Server *******/
   {
-    bundleTypes: __EXPERIMENTAL__
-      ? [UMD_DEV, UMD_PROD, NODE_DEV, NODE_PROD]
-      : [UMD_DEV, UMD_PROD, NODE_DEV, NODE_PROD, FB_WWW_DEV, FB_WWW_PROD],
+    bundleTypes: [
+      UMD_DEV,
+      UMD_PROD,
+      NODE_DEV,
+      NODE_PROD,
+      FB_WWW_DEV,
+      FB_WWW_PROD,
+    ],
     moduleType: RENDERER,
-    entry: 'react-dom/src/server/ReactDOMLegacyServerBrowser',
+    entry: 'react-dom/src/server/ReactDOMLegacyServerBrowser.js',
     name: 'react-dom-server-legacy.browser',
     global: 'ReactDOMServer',
     minifyWithProdErrorCodes: true,
     wrapWithModuleBoundaries: false,
-    externals: ['react'],
+    externals: ['react', 'react-dom'],
     babel: opts =>
       Object.assign({}, opts, {
         plugins: opts.plugins.concat([
@@ -279,9 +288,9 @@ const bundles = [
   {
     bundleTypes: [NODE_DEV, NODE_PROD],
     moduleType: RENDERER,
-    entry: 'react-dom/src/server/ReactDOMLegacyServerNode',
+    entry: 'react-dom/src/server/ReactDOMLegacyServerNode.js',
     name: 'react-dom-server-legacy.node',
-    externals: ['react', 'stream'],
+    externals: ['react', 'stream', 'react-dom'],
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
     babel: opts =>
@@ -296,59 +305,104 @@ const bundles = [
   {
     bundleTypes: [NODE_DEV, NODE_PROD, UMD_DEV, UMD_PROD],
     moduleType: RENDERER,
-    entry: 'react-dom/src/server/ReactDOMFizzServerBrowser',
+    entry: 'react-dom/src/server/ReactDOMFizzServerBrowser.js',
     name: 'react-dom-server.browser',
     global: 'ReactDOMServer',
     minifyWithProdErrorCodes: true,
     wrapWithModuleBoundaries: false,
-    externals: ['react'],
+    externals: ['react', 'react-dom'],
   },
   {
     bundleTypes: [NODE_DEV, NODE_PROD],
     moduleType: RENDERER,
-    entry: 'react-dom/src/server/ReactDOMFizzServerNode',
+    entry: 'react-dom/src/server/ReactDOMFizzServerNode.js',
     name: 'react-dom-server.node',
     global: 'ReactDOMServer',
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
-    externals: ['react'],
+    externals: ['react', 'util', 'react-dom'],
   },
   {
     bundleTypes: __EXPERIMENTAL__ ? [FB_WWW_DEV, FB_WWW_PROD] : [],
     moduleType: RENDERER,
-    entry: 'react-server-dom-relay/src/ReactDOMServerFB',
-    global: 'ReactDOMServer',
+    entry: 'react-server-dom-relay/src/ReactDOMServerFB.js',
+    global: 'ReactDOMServerStreaming',
     minifyWithProdErrorCodes: false,
+    wrapWithModuleBoundaries: false,
+    externals: ['react', 'react-dom'],
+  },
+
+  /******* React DOM Fizz Static *******/
+  {
+    bundleTypes: __EXPERIMENTAL__ ? [NODE_DEV, NODE_PROD] : [],
+    moduleType: RENDERER,
+    entry: 'react-dom/static.browser',
+    global: 'ReactDOMStatic',
+    minifyWithProdErrorCodes: true,
+    wrapWithModuleBoundaries: false,
+    externals: ['react', 'react-dom'],
+  },
+  {
+    bundleTypes: __EXPERIMENTAL__ ? [NODE_DEV, NODE_PROD] : [],
+    moduleType: RENDERER,
+    entry: 'react-dom/static.node',
+    name: 'react-dom-static.node',
+    global: 'ReactDOMStatic',
+    minifyWithProdErrorCodes: false,
+    wrapWithModuleBoundaries: false,
+    externals: ['react', 'util', 'stream', 'react-dom'],
+  },
+
+  /******* React DOM Fizz Server External Runtime *******/
+  {
+    bundleTypes: [BROWSER_SCRIPT],
+    moduleType: RENDERER,
+    entry: 'react-dom/src/server/ReactDOMServerExternalRuntime.js',
+    outputPath: 'unstable_server-external-runtime.js',
+    global: 'ReactDOMServerExternalRuntime',
+    minifyWithProdErrorCodes: false,
+    wrapWithModuleBoundaries: false,
+    externals: [],
+  },
+
+  /******* React DOM Server Render Stub *******/
+  {
+    bundleTypes: [NODE_DEV, NODE_PROD, UMD_DEV, UMD_PROD],
+    moduleType: RENDERER,
+    entry: 'react-dom/server-rendering-stub',
+    name: 'react-dom-server-rendering-stub',
+    global: 'ReactDOMServerRenderingStub',
+    minifyWithProdErrorCodes: true,
     wrapWithModuleBoundaries: false,
     externals: ['react'],
   },
 
-  /******* React Server DOM Webpack Writer *******/
+  /******* React Server DOM Webpack Server *******/
   {
     bundleTypes: [NODE_DEV, NODE_PROD, UMD_DEV, UMD_PROD],
     moduleType: RENDERER,
-    entry: 'react-server-dom-webpack/writer.browser.server',
-    global: 'ReactServerDOMWriter',
+    entry: 'react-server-dom-webpack/server.browser',
+    global: 'ReactServerDOMServer',
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
-    externals: ['react'],
+    externals: ['react', 'react-dom'],
   },
   {
     bundleTypes: [NODE_DEV, NODE_PROD],
     moduleType: RENDERER,
-    entry: 'react-server-dom-webpack/writer.node.server',
-    global: 'ReactServerDOMWriter',
+    entry: 'react-server-dom-webpack/server.node',
+    global: 'ReactServerDOMServer',
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
-    externals: ['react'],
+    externals: ['react', 'util', 'react-dom'],
   },
 
-  /******* React Server DOM Webpack Reader *******/
+  /******* React Server DOM Webpack Client *******/
   {
     bundleTypes: [NODE_DEV, NODE_PROD, UMD_DEV, UMD_PROD],
     moduleType: RENDERER,
-    entry: 'react-server-dom-webpack',
-    global: 'ReactServerDOMReader',
+    entry: 'react-server-dom-webpack/client',
+    global: 'ReactServerDOMClient',
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
     externals: ['react'],
@@ -380,7 +434,8 @@ const bundles = [
   {
     bundleTypes: [NODE_ES2015],
     moduleType: RENDERER_UTILS,
-    entry: 'react-server-dom-webpack/node-register',
+    entry: 'react-server-dom-webpack/src/ReactFlightWebpackNodeRegister.js',
+    name: 'react-server-dom-webpack-node-register',
     global: 'ReactFlightWebpackNodeRegister',
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
@@ -398,7 +453,7 @@ const bundles = [
     externals: [
       'react',
       'ReactFlightDOMRelayServerIntegration',
-      'JSResourceReference',
+      'JSResourceReferenceImpl',
     ],
   },
 
@@ -413,7 +468,7 @@ const bundles = [
     externals: [
       'react',
       'ReactFlightDOMRelayClientIntegration',
-      'JSResourceReference',
+      'JSResourceReferenceImpl',
     ],
   },
 
@@ -430,6 +485,7 @@ const bundles = [
       'ReactFlightNativeRelayServerIntegration',
       'JSResourceReferenceImpl',
       'ReactNativeInternalFeatureFlags',
+      'util',
     ],
   },
 
@@ -728,13 +784,16 @@ const bundles = [
       FB_WWW_PROD,
       UMD_DEV,
       UMD_PROD,
+      RN_FB_DEV,
+      RN_FB_PROD,
+      RN_FB_PROFILING,
     ],
     moduleType: ISOMORPHIC,
     entry: 'react-is',
     global: 'ReactIs',
     minifyWithProdErrorCodes: true,
     wrapWithModuleBoundaries: false,
-    externals: [],
+    externals: ['ReactNativeInternalFeatureFlags'],
   },
 
   /******* React Debug Tools *******/
@@ -759,23 +818,6 @@ const bundles = [
     minifyWithProdErrorCodes: false,
     wrapWithModuleBoundaries: false,
     externals: ['react', 'scheduler'],
-  },
-
-  /******* createComponentWithSubscriptions *******/
-  {
-    bundleTypes: [NODE_DEV, NODE_PROD],
-    moduleType: ISOMORPHIC,
-    entry: 'create-subscription',
-    global: 'createSubscription',
-    externals: ['react'],
-    minifyWithProdErrorCodes: true,
-    wrapWithModuleBoundaries: true,
-    babel: opts =>
-      Object.assign({}, opts, {
-        plugins: opts.plugins.concat([
-          [require.resolve('@babel/plugin-transform-classes'), {loose: true}],
-        ]),
-      }),
   },
 
   /******* Hook for managing subscriptions safely *******/
@@ -1002,6 +1044,8 @@ function getOriginalFilename(bundle, bundleType) {
     case RN_FB_PROFILING:
     case RN_OSS_PROFILING:
       return `${globalName}-profiling.js`;
+    case BROWSER_SCRIPT:
+      return `${name}.js`;
   }
 }
 

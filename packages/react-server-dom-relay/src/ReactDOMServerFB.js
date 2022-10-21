@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -92,4 +92,17 @@ function hasFinished(stream: Stream): boolean {
   return stream.destination.done;
 }
 
-export {renderToStream, renderNextChunk, hasFinished, abortStream};
+function debug(stream: Stream): any {
+  // convert to any to silence flow errors from opaque type
+  const request = (stream.request: any);
+  return {
+    pendingRootTasks: request.pendingRootTasks,
+    clientRenderedBoundaries: request.clientRenderedBoundaries.length,
+    completedBoundaries: request.completedBoundaries.length,
+    partialBoundaries: request.partialBoundaries.length,
+    allPendingTasks: request.allPendingTasks,
+    pingedTasks: request.pingedTasks.length,
+  };
+}
+
+export {renderToStream, renderNextChunk, hasFinished, abortStream, debug};

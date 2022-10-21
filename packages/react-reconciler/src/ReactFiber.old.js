@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -14,22 +14,32 @@ import type {RootTag} from './ReactRootTags';
 import type {WorkTag} from './ReactWorkTags';
 import type {TypeOfMode} from './ReactTypeOfMode';
 import type {Lanes} from './ReactFiberLane.old';
-import type {SuspenseInstance, Props} from './ReactFiberHostConfig';
-import type {OffscreenProps} from './ReactFiberOffscreenComponent';
+import type {SuspenseInstance} from './ReactFiberHostConfig';
+import type {
+  OffscreenProps,
+  OffscreenInstance,
+} from './ReactFiberOffscreenComponent';
+import type {TracingMarkerInstance} from './ReactFiberTracingMarkerComponent.old';
 
+import {
+  supportsResources,
+  supportsSingletons,
+  isHostResourceType,
+  isHostSingletonType,
+} from './ReactFiberHostConfig';
 import {
   createRootStrictEffectsByDefault,
   enableCache,
-  enableStrictEffects,
   enableProfilerTimer,
   enableScopeAPI,
+  enableLegacyHidden,
   enableSyncDefaultUpdates,
   allowConcurrentByDefault,
+  enableTransitionTracing,
+  enableDebugTracing,
+  enableFloat,
+  enableHostSingletons,
 } from 'shared/ReactFeatureFlags';
-import {
-  supportsPersistence,
-  getOffscreenContainerType,
-} from './ReactFiberHostConfig';
 import {NoFlags, Placement, StaticMask} from './ReactFiberFlags';
 import {ConcurrentRoot} from './ReactRootTags';
 import {
@@ -39,6 +49,8 @@ import {
   HostComponent,
   HostText,
   HostPortal,
+  HostResource,
+  HostSingleton,
   ForwardRef,
   Fragment,
   Mode,
@@ -56,9 +68,10 @@ import {
   OffscreenComponent,
   LegacyHiddenComponent,
   CacheComponent,
+  TracingMarkerComponent,
 } from './ReactWorkTags';
+import {OffscreenVisible} from './ReactFiberOffscreenComponent';
 import getComponentNameFromFiber from 'react-reconciler/src/getComponentNameFromFiber';
-
 import {isDevToolsPresent} from './ReactFiberDevToolsHook.old';
 import {
   resolveClassForHotReloading,
@@ -91,7 +104,10 @@ import {
   REACT_OFFSCREEN_TYPE,
   REACT_LEGACY_HIDDEN_TYPE,
   REACT_CACHE_TYPE,
+  REACT_TRACING_MARKER_TYPE,
 } from 'shared/ReactSymbols';
+import {TransitionTracingMarker} from './ReactFiberTracingMarkerComponent.old';
+import {detachOffscreenInstance} from './ReactFiberCommitWork.old';
 
 export type {Fiber};
 
@@ -218,7 +234,7 @@ function shouldConstruct(Component: Function) {
   return !!(prototype && prototype.isReactComponent);
 }
 
-export function isSimpleFunctionComponent(type: any) {
+export function isSimpleFunctionComponent(type: any): boolean {
   return (
     typeof type === 'function' &&
     !shouldConstruct(type) &&
@@ -348,7 +364,10 @@ export function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
 }
 
 // Used to reuse a Fiber for a second pass.
-export function resetWorkInProgress(workInProgress: Fiber, renderLanes: Lanes) {
+export function resetWorkInProgress(
+  workInProgress: Fiber,
+  renderLanes: Lanes,
+): Fiber {
   // This resets the Fiber to what createFiber or createWorkInProgress would
   // have set the values to before during the first pass. Ideally this wouldn't
   // be necessary but unfortunately many code paths reads from the workInProgress
@@ -429,13 +448,7 @@ export function createHostRootFiber(
   let mode;
   if (tag === ConcurrentRoot) {
     mode = ConcurrentMode;
-    if (isStrictMode === true) {
-      mode |= StrictLegacyMode;
-
-      if (enableStrictEffects) {
-        mode |= StrictEffectsMode;
-      }
-    } else if (enableStrictEffects && createRootStrictEffectsByDefault) {
+    if (isStrictMode === true || createRootStrictEffectsByDefault) {
       mode |= StrictLegacyMode | StrictEffectsMode;
     }
     if (
@@ -484,19 +497,34 @@ export function createFiberFromTypeAndProps(
       }
     }
   } else if (typeof type === 'string') {
-    fiberTag = HostComponent;
+    if (
+      enableFloat &&
+      supportsResources &&
+      enableHostSingletons &&
+      supportsSingletons
+    ) {
+      fiberTag = isHostResourceType(type, pendingProps)
+        ? HostResource
+        : isHostSingletonType(type)
+        ? HostSingleton
+        : HostComponent;
+    } else if (enableFloat && supportsResources) {
+      fiberTag = isHostResourceType(type, pendingProps)
+        ? HostResource
+        : HostComponent;
+    } else if (enableHostSingletons && supportsSingletons) {
+      fiberTag = isHostSingletonType(type) ? HostSingleton : HostComponent;
+    } else {
+      fiberTag = HostComponent;
+    }
   } else {
     getTag: switch (type) {
       case REACT_FRAGMENT_TYPE:
         return createFiberFromFragment(pendingProps.children, mode, lanes, key);
-      case REACT_DEBUG_TRACING_MODE_TYPE:
-        fiberTag = Mode;
-        mode |= DebugTracingMode;
-        break;
       case REACT_STRICT_MODE_TYPE:
         fiberTag = Mode;
         mode |= StrictLegacyMode;
-        if (enableStrictEffects && (mode & ConcurrentMode) !== NoMode) {
+        if ((mode & ConcurrentMode) !== NoMode) {
           // Strict effects should never run on legacy roots
           mode |= StrictEffectsMode;
         }
@@ -510,7 +538,10 @@ export function createFiberFromTypeAndProps(
       case REACT_OFFSCREEN_TYPE:
         return createFiberFromOffscreen(pendingProps, mode, lanes, key);
       case REACT_LEGACY_HIDDEN_TYPE:
-        return createFiberFromLegacyHidden(pendingProps, mode, lanes, key);
+        if (enableLegacyHidden) {
+          return createFiberFromLegacyHidden(pendingProps, mode, lanes, key);
+        }
+      // eslint-disable-next-line no-fallthrough
       case REACT_SCOPE_TYPE:
         if (enableScopeAPI) {
           return createFiberFromScope(type, pendingProps, mode, lanes, key);
@@ -519,6 +550,18 @@ export function createFiberFromTypeAndProps(
       case REACT_CACHE_TYPE:
         if (enableCache) {
           return createFiberFromCache(pendingProps, mode, lanes, key);
+        }
+      // eslint-disable-next-line no-fallthrough
+      case REACT_TRACING_MARKER_TYPE:
+        if (enableTransitionTracing) {
+          return createFiberFromTracingMarker(pendingProps, mode, lanes, key);
+        }
+      // eslint-disable-next-line no-fallthrough
+      case REACT_DEBUG_TRACING_MODE_TYPE:
+        if (enableDebugTracing) {
+          fiberTag = Mode;
+          mode |= DebugTracingMode;
+          break;
         }
       // eslint-disable-next-line no-fallthrough
       default: {
@@ -584,25 +627,6 @@ export function createFiberFromTypeAndProps(
   }
 
   return fiber;
-}
-
-export function createOffscreenHostContainerFiber(
-  props: Props,
-  fiberMode: TypeOfMode,
-  lanes: Lanes,
-  key: null | string,
-): Fiber {
-  if (supportsPersistence) {
-    const type = getOffscreenContainerType();
-    const fiber = createFiber(HostComponent, props, key, fiberMode);
-    fiber.elementType = type;
-    fiber.type = type;
-    fiber.lanes = lanes;
-    return fiber;
-  } else {
-    // Only implemented in persistent mode
-    throw new Error('Not implemented.');
-  }
 }
 
 export function createFiberFromElement(
@@ -691,7 +715,7 @@ export function createFiberFromSuspense(
   mode: TypeOfMode,
   lanes: Lanes,
   key: null | string,
-) {
+): Fiber {
   const fiber = createFiber(SuspenseComponent, pendingProps, key, mode);
   fiber.elementType = REACT_SUSPENSE_TYPE;
   fiber.lanes = lanes;
@@ -703,7 +727,7 @@ export function createFiberFromSuspenseList(
   mode: TypeOfMode,
   lanes: Lanes,
   key: null | string,
-) {
+): Fiber {
   const fiber = createFiber(SuspenseListComponent, pendingProps, key, mode);
   fiber.elementType = REACT_SUSPENSE_LIST_TYPE;
   fiber.lanes = lanes;
@@ -715,10 +739,19 @@ export function createFiberFromOffscreen(
   mode: TypeOfMode,
   lanes: Lanes,
   key: null | string,
-) {
+): Fiber {
   const fiber = createFiber(OffscreenComponent, pendingProps, key, mode);
   fiber.elementType = REACT_OFFSCREEN_TYPE;
   fiber.lanes = lanes;
+  const primaryChildInstance: OffscreenInstance = {
+    _visibility: OffscreenVisible,
+    _pendingMarkers: null,
+    _retryCache: null,
+    _transitions: null,
+    _current: null,
+    detach: () => detachOffscreenInstance(primaryChildInstance),
+  };
+  fiber.stateNode = primaryChildInstance;
   return fiber;
 }
 
@@ -727,10 +760,21 @@ export function createFiberFromLegacyHidden(
   mode: TypeOfMode,
   lanes: Lanes,
   key: null | string,
-) {
+): Fiber {
   const fiber = createFiber(LegacyHiddenComponent, pendingProps, key, mode);
   fiber.elementType = REACT_LEGACY_HIDDEN_TYPE;
   fiber.lanes = lanes;
+  // Adding a stateNode for legacy hidden because it's currently using
+  // the offscreen implementation, which depends on a state node
+  const instance: OffscreenInstance = {
+    _visibility: OffscreenVisible,
+    _pendingMarkers: null,
+    _transitions: null,
+    _retryCache: null,
+    _current: null,
+    detach: () => detachOffscreenInstance(instance),
+  };
+  fiber.stateNode = instance;
   return fiber;
 }
 
@@ -739,10 +783,30 @@ export function createFiberFromCache(
   mode: TypeOfMode,
   lanes: Lanes,
   key: null | string,
-) {
+): Fiber {
   const fiber = createFiber(CacheComponent, pendingProps, key, mode);
   fiber.elementType = REACT_CACHE_TYPE;
   fiber.lanes = lanes;
+  return fiber;
+}
+
+export function createFiberFromTracingMarker(
+  pendingProps: any,
+  mode: TypeOfMode,
+  lanes: Lanes,
+  key: null | string,
+): Fiber {
+  const fiber = createFiber(TracingMarkerComponent, pendingProps, key, mode);
+  fiber.elementType = REACT_TRACING_MARKER_TYPE;
+  fiber.lanes = lanes;
+  const tracingMarkerInstance: TracingMarkerInstance = {
+    tag: TransitionTracingMarker,
+    transitions: null,
+    pendingBoundaries: null,
+    aborts: null,
+    name: pendingProps.name,
+  };
+  fiber.stateNode = tracingMarkerInstance;
   return fiber;
 }
 

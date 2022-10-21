@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -17,23 +17,23 @@ const Pending = 0;
 const Resolved = 1;
 const Rejected = 2;
 
-type PendingRecord = {|
+type PendingRecord = {
   status: 0,
   value: Wakeable,
   cache: null,
-|};
+};
 
-type ResolvedRecord<T> = {|
+type ResolvedRecord<T> = {
   status: 1,
   value: T,
   cache: null | Array<mixed>,
-|};
+};
 
-type RejectedRecord = {|
+type RejectedRecord = {
   status: 2,
   value: mixed,
   cache: null,
-|};
+};
 
 type Record<T> = PendingRecord | ResolvedRecord<T> | RejectedRecord;
 
@@ -152,8 +152,10 @@ export function lstat(path: string, options?: {bigint?: boolean}): mixed {
   if (!record) {
     const thenable = fs.lstat(path, {bigint});
     record = createRecordFromThenable(thenable);
+    // $FlowFixMe[incompatible-call] found when upgrading Flow
     lstatCache.push(bigint, record);
   }
+  // $FlowFixMe[incompatible-call] found when upgrading Flow
   const stats = readRecord(record).value;
   return stats;
 }
@@ -201,8 +203,10 @@ export function readdir(
   if (!record) {
     const thenable = fs.readdir(path, {encoding, withFileTypes});
     record = createRecordFromThenable(thenable);
+    // $FlowFixMe[incompatible-call] found when upgrading Flow
     readdirCache.push(encoding, withFileTypes, record);
   }
+  // $FlowFixMe[incompatible-call] found when upgrading Flow
   const files = readRecord(record).value;
   return files;
 }
@@ -299,8 +303,10 @@ export function readlink(
   if (!record) {
     const thenable = fs.readlink(path, {encoding});
     record = createRecordFromThenable(thenable);
+    // $FlowFixMe[incompatible-call] found when upgrading Flow
     readlinkCache.push(encoding, record);
   }
+  // $FlowFixMe[incompatible-call] found when upgrading Flow
   const linkString = readRecord(record).value;
   return linkString;
 }
@@ -340,8 +346,10 @@ export function realpath(
   if (!record) {
     const thenable = fs.realpath(path, {encoding});
     record = createRecordFromThenable(thenable);
+    // $FlowFixMe[incompatible-call] found when upgrading Flow
     realpathCache.push(encoding, record);
   }
+  // $FlowFixMe[incompatible-call] found when upgrading Flow
   const resolvedPath = readRecord(record).value;
   return resolvedPath;
 }
@@ -374,8 +382,10 @@ export function stat(path: string, options?: {bigint?: boolean}): mixed {
   if (!record) {
     const thenable = fs.stat(path, {bigint});
     record = createRecordFromThenable(thenable);
+    // $FlowFixMe[incompatible-call] found when upgrading Flow
     statCache.push(bigint, record);
   }
+  // $FlowFixMe[incompatible-call] found when upgrading Flow
   const stats = readRecord(record).value;
   return stats;
 }

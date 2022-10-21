@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -3089,6 +3089,87 @@ describe('ReactHooksWithNoopRenderer', () => {
           root3.unmount();
         }),
       ).toThrow('is not a function');
+    });
+
+    it('warns when setState is called from insertion effect setup', () => {
+      function App(props) {
+        const [, setX] = useState(0);
+        useInsertionEffect(() => {
+          setX(1);
+          if (props.throw) {
+            throw Error('No');
+          }
+        }, [props.throw]);
+        return null;
+      }
+
+      const root = ReactNoop.createRoot();
+      expect(() =>
+        act(() => {
+          root.render(<App />);
+        }),
+      ).toErrorDev(['Warning: useInsertionEffect must not schedule updates.']);
+
+      expect(() => {
+        act(() => {
+          root.render(<App throw={true} />);
+        });
+      }).toThrow('No');
+
+      // Should not warn for regular effects after throw.
+      function NotInsertion() {
+        const [, setX] = useState(0);
+        useEffect(() => {
+          setX(1);
+        }, []);
+        return null;
+      }
+      act(() => {
+        root.render(<NotInsertion />);
+      });
+    });
+
+    it('warns when setState is called from insertion effect cleanup', () => {
+      function App(props) {
+        const [, setX] = useState(0);
+        useInsertionEffect(() => {
+          if (props.throw) {
+            throw Error('No');
+          }
+          return () => {
+            setX(1);
+          };
+        }, [props.throw, props.foo]);
+        return null;
+      }
+
+      const root = ReactNoop.createRoot();
+      act(() => {
+        root.render(<App foo="hello" />);
+      });
+      expect(() => {
+        act(() => {
+          root.render(<App foo="goodbye" />);
+        });
+      }).toErrorDev(['Warning: useInsertionEffect must not schedule updates.']);
+
+      expect(() => {
+        act(() => {
+          root.render(<App throw={true} />);
+        });
+      }).toThrow('No');
+
+      // Should not warn for regular effects after throw.
+      function NotInsertion() {
+        const [, setX] = useState(0);
+        useEffect(() => {
+          setX(1);
+        }, []);
+        return null;
+      }
+      act(() => {
+        root.render(<NotInsertion />);
+      });
     });
   });
 

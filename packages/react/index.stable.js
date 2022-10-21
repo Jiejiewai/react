@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -21,7 +21,6 @@ export {
   createContext,
   createElement,
   createFactory,
-  createMutableSource as unstable_createMutableSource,
   createRef,
   forwardRef,
   isValidElement,
@@ -34,14 +33,15 @@ export {
   useDebugValue,
   useDeferredValue,
   useEffect,
+  experimental_useEvent,
   useImperativeHandle,
   useInsertionEffect,
   useLayoutEffect,
   useMemo,
-  useSyncExternalStore,
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
   version,
 } from './src/React';

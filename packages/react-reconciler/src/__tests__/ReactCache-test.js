@@ -2,15 +2,17 @@ let React;
 let ReactNoop;
 let Cache;
 let getCacheSignal;
-let getCacheForType;
 let Scheduler;
 let act;
 let Suspense;
+let Offscreen;
 let useCacheRefresh;
 let startTransition;
 let useState;
+let cache;
 
-let caches;
+let getTextCache;
+let textCaches;
 let seededCache;
 
 describe('ReactCache', () => {
@@ -23,65 +25,68 @@ describe('ReactCache', () => {
     Scheduler = require('scheduler');
     act = require('jest-react').act;
     Suspense = React.Suspense;
+    cache = React.experimental_cache;
+    Offscreen = React.unstable_Offscreen;
     getCacheSignal = React.unstable_getCacheSignal;
-    getCacheForType = React.unstable_getCacheForType;
     useCacheRefresh = React.unstable_useCacheRefresh;
     startTransition = React.startTransition;
     useState = React.useState;
 
-    caches = [];
+    textCaches = [];
     seededCache = null;
-  });
 
-  function createTextCache() {
-    if (seededCache !== null) {
-      // Trick to seed a cache before it exists.
-      // TODO: Need a built-in API to seed data before the initial render (i.e.
-      // not a refresh because nothing has mounted yet).
-      const cache = seededCache;
-      seededCache = null;
-      return cache;
+    if (gate(flags => flags.enableCache)) {
+      getTextCache = cache(() => {
+        if (seededCache !== null) {
+          // Trick to seed a cache before it exists.
+          // TODO: Need a built-in API to seed data before the initial render (i.e.
+          // not a refresh because nothing has mounted yet).
+          const textCache = seededCache;
+          seededCache = null;
+          return textCache;
+        }
+
+        const data = new Map();
+        const version = textCaches.length + 1;
+        const textCache = {
+          version,
+          data,
+          resolve(text) {
+            const record = data.get(text);
+            if (record === undefined) {
+              const newRecord = {
+                status: 'resolved',
+                value: text,
+                cleanupScheduled: false,
+              };
+              data.set(text, newRecord);
+            } else if (record.status === 'pending') {
+              record.value.resolve();
+            }
+          },
+          reject(text, error) {
+            const record = data.get(text);
+            if (record === undefined) {
+              const newRecord = {
+                status: 'rejected',
+                value: error,
+                cleanupScheduled: false,
+              };
+              data.set(text, newRecord);
+            } else if (record.status === 'pending') {
+              record.value.reject();
+            }
+          },
+        };
+        textCaches.push(textCache);
+        return textCache;
+      });
     }
-
-    const data = new Map();
-    const version = caches.length + 1;
-    const cache = {
-      version,
-      data,
-      resolve(text) {
-        const record = data.get(text);
-        if (record === undefined) {
-          const newRecord = {
-            status: 'resolved',
-            value: text,
-            cleanupScheduled: false,
-          };
-          data.set(text, newRecord);
-        } else if (record.status === 'pending') {
-          record.value.resolve();
-        }
-      },
-      reject(text, error) {
-        const record = data.get(text);
-        if (record === undefined) {
-          const newRecord = {
-            status: 'rejected',
-            value: error,
-            cleanupScheduled: false,
-          };
-          data.set(text, newRecord);
-        } else if (record.status === 'pending') {
-          record.value.reject();
-        }
-      },
-    };
-    caches.push(cache);
-    return cache;
-  }
+  });
 
   function readText(text) {
     const signal = getCacheSignal();
-    const textCache = getCacheForType(createTextCache);
+    const textCache = getTextCache();
     const record = textCache.data.get(text);
     if (record !== undefined) {
       if (!record.cleanupScheduled) {
@@ -158,18 +163,18 @@ describe('ReactCache', () => {
 
   function seedNextTextCache(text) {
     if (seededCache === null) {
-      seededCache = createTextCache();
+      seededCache = getTextCache();
     }
     seededCache.resolve(text);
   }
 
   function resolveMostRecentTextCache(text) {
-    if (caches.length === 0) {
+    if (textCaches.length === 0) {
       throw Error('Cache does not exist.');
     } else {
       // Resolve the most recently created cache. An older cache can by
-      // resolved with `caches[index].resolve(text)`.
-      caches[caches.length - 1].resolve(text);
+      // resolved with `textCaches[index].resolve(text)`.
+      textCaches[textCaches.length - 1].resolve(text);
     }
   }
 
@@ -229,6 +234,53 @@ describe('ReactCache', () => {
     });
     expect(Scheduler).toHaveYielded(['A']);
     expect(root).toMatchRenderedOutput('A');
+
+    await act(async () => {
+      root.render('Bye');
+    });
+    // no cleanup: cache is still retained at the root
+    expect(Scheduler).toHaveYielded([]);
+    expect(root).toMatchRenderedOutput('Bye');
+  });
+
+  // @gate experimental || www
+  test('multiple new Cache boundaries in the same mount share the same, fresh root cache', async () => {
+    function App() {
+      return (
+        <>
+          <Cache>
+            <Suspense fallback={<Text text="Loading..." />}>
+              <AsyncText text="A" />
+            </Suspense>
+          </Cache>
+          <Cache>
+            <Suspense fallback={<Text text="Loading..." />}>
+              <AsyncText text="A" />
+            </Suspense>
+          </Cache>
+        </>
+      );
+    }
+
+    const root = ReactNoop.createRoot();
+    await act(async () => {
+      root.render(<App showMore={false} />);
+    });
+
+    // Even though there are two new <Cache /> trees, they should share the same
+    // data cache. So there should be only a single cache miss for A.
+    expect(Scheduler).toHaveYielded([
+      'Cache miss! [A]',
+      'Loading...',
+      'Loading...',
+    ]);
+    expect(root).toMatchRenderedOutput('Loading...Loading...');
+
+    await act(async () => {
+      resolveMostRecentTextCache('A');
+    });
+    expect(Scheduler).toHaveYielded(['A', 'A']);
+    expect(root).toMatchRenderedOutput('AA');
 
     await act(async () => {
       root.render('Bye');
@@ -739,14 +791,21 @@ describe('ReactCache', () => {
     await act(async () => {
       refresh();
     });
-    expect(Scheduler).toHaveYielded(['Cache miss! [A]', 'Loading...']);
+    expect(Scheduler).toHaveYielded([
+      'Cache miss! [A]',
+      'Loading...',
+      // The v1 cache can be cleaned up since everything that references it has
+      // been replaced by a fallback. When the boundary switches back to visible
+      // it will use the v2 cache.
+      'Cache cleanup: A [v1]',
+    ]);
     expect(root).toMatchRenderedOutput('Loading...');
 
     await act(async () => {
       resolveMostRecentTextCache('A');
     });
     // Note that the version has updated, and the previous cache is cleared
-    expect(Scheduler).toHaveYielded(['A [v2]', 'Cache cleanup: A [v1]']);
+    expect(Scheduler).toHaveYielded(['A [v2]']);
     expect(root).toMatchRenderedOutput('A [v2]');
 
     await act(async () => {
@@ -759,9 +818,18 @@ describe('ReactCache', () => {
 
   // @gate experimental || www
   test('refresh a cache with seed data', async () => {
-    let refresh;
+    let refreshWithSeed;
     function App() {
-      refresh = useCacheRefresh();
+      const refresh = useCacheRefresh();
+      const [seed, setSeed] = useState({fn: null});
+      if (seed.fn) {
+        seed.fn();
+        seed.fn = null;
+      }
+      refreshWithSeed = fn => {
+        setSeed({fn});
+        refresh();
+      };
       return <AsyncText showVersion={true} text="A" />;
     }
 
@@ -789,11 +857,14 @@ describe('ReactCache', () => {
     await act(async () => {
       // Refresh the cache with seeded data, like you would receive from a
       // server mutation.
-      // TODO: Seeding multiple typed caches. Should work by calling `refresh`
+      // TODO: Seeding multiple typed textCaches. Should work by calling `refresh`
       // multiple times with different key/value pairs
-      const cache = createTextCache();
-      cache.resolve('A');
-      startTransition(() => refresh(createTextCache, cache));
+      startTransition(() =>
+        refreshWithSeed(() => {
+          const textCache = getTextCache();
+          textCache.resolve('A');
+        }),
+      );
     });
     // The root should re-render without a cache miss.
     // The cache is not cleared up yet, since it's still reference by the root
@@ -1535,5 +1606,185 @@ describe('ReactCache', () => {
       'Cache cleanup: A [v2]',
     ]);
     expect(root).toMatchRenderedOutput('Bye!');
+  });
+
+  // @gate enableOffscreen
+  // @gate enableCache
+  test('prerender a new cache boundary inside an Offscreen tree', async () => {
+    function App({prerenderMore}) {
+      return (
+        <Offscreen mode="hidden">
+          <div>
+            {prerenderMore ? (
+              <Cache>
+                <AsyncText text="More" />
+              </Cache>
+            ) : null}
+          </div>
+        </Offscreen>
+      );
+    }
+
+    const root = ReactNoop.createRoot();
+    await act(async () => {
+      root.render(<App prerenderMore={false} />);
+    });
+    expect(Scheduler).toHaveYielded([]);
+    expect(root).toMatchRenderedOutput(<div hidden={true} />);
+
+    seedNextTextCache('More');
+    await act(async () => {
+      root.render(<App prerenderMore={true} />);
+    });
+    expect(Scheduler).toHaveYielded(['More']);
+    expect(root).toMatchRenderedOutput(<div hidden={true}>More</div>);
+  });
+
+  // @gate enableCache
+  it('cache objects and primitive arguments and a mix of them', async () => {
+    const root = ReactNoop.createRoot();
+    const types = cache((a, b) => ({a: typeof a, b: typeof b}));
+    function Print({a, b}) {
+      return types(a, b).a + ' ' + types(a, b).b + ' ';
+    }
+    function Same({a, b}) {
+      const x = types(a, b);
+      const y = types(a, b);
+      return (x === y).toString() + ' ';
+    }
+    function FlippedOrder({a, b}) {
+      return (types(a, b) === types(b, a)).toString() + ' ';
+    }
+    function FewerArgs({a, b}) {
+      return (types(a, b) === types(a)).toString() + ' ';
+    }
+    function MoreArgs({a, b}) {
+      return (types(a) === types(a, b)).toString() + ' ';
+    }
+    await act(async () => {
+      root.render(
+        <>
+          <Print a="e" b="f" />
+          <Same a="a" b="b" />
+          <FlippedOrder a="c" b="d" />
+          <FewerArgs a="e" b="f" />
+          <MoreArgs a="g" b="h" />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('string string true false false false ');
+    await act(async () => {
+      root.render(
+        <>
+          <Print a="e" b={null} />
+          <Same a="a" b={null} />
+          <FlippedOrder a="c" b={null} />
+          <FewerArgs a="e" b={null} />
+          <MoreArgs a="g" b={null} />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('string object true false false false ');
+    const obj = {};
+    await act(async () => {
+      root.render(
+        <>
+          <Print a="e" b={obj} />
+          <Same a="a" b={obj} />
+          <FlippedOrder a="c" b={obj} />
+          <FewerArgs a="e" b={obj} />
+          <MoreArgs a="g" b={obj} />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('string object true false false false ');
+    const sameObj = {};
+    await act(async () => {
+      root.render(
+        <>
+          <Print a={sameObj} b={sameObj} />
+          <Same a={sameObj} b={sameObj} />
+          <FlippedOrder a={sameObj} b={sameObj} />
+          <FewerArgs a={sameObj} b={sameObj} />
+          <MoreArgs a={sameObj} b={sameObj} />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('object object true true false false ');
+    const objA = {};
+    const objB = {};
+    await act(async () => {
+      root.render(
+        <>
+          <Print a={objA} b={objB} />
+          <Same a={objA} b={objB} />
+          <FlippedOrder a={objA} b={objB} />
+          <FewerArgs a={objA} b={objB} />
+          <MoreArgs a={objA} b={objB} />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('object object true false false false ');
+    const sameSymbol = Symbol();
+    await act(async () => {
+      root.render(
+        <>
+          <Print a={sameSymbol} b={sameSymbol} />
+          <Same a={sameSymbol} b={sameSymbol} />
+          <FlippedOrder a={sameSymbol} b={sameSymbol} />
+          <FewerArgs a={sameSymbol} b={sameSymbol} />
+          <MoreArgs a={sameSymbol} b={sameSymbol} />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('symbol symbol true true false false ');
+    const notANumber = +'nan';
+    await act(async () => {
+      root.render(
+        <>
+          <Print a={1} b={notANumber} />
+          <Same a={1} b={notANumber} />
+          <FlippedOrder a={1} b={notANumber} />
+          <FewerArgs a={1} b={notANumber} />
+          <MoreArgs a={1} b={notANumber} />
+        </>,
+      );
+    });
+    expect(root).toMatchRenderedOutput('number number true false false false ');
+  });
+
+  // @gate enableCache
+  it('cached functions that throw should cache the error', async () => {
+    const root = ReactNoop.createRoot();
+    const throws = cache(v => {
+      throw new Error(v);
+    });
+    let x;
+    let y;
+    let z;
+    function Test() {
+      try {
+        throws(1);
+      } catch (e) {
+        x = e;
+      }
+      try {
+        throws(1);
+      } catch (e) {
+        y = e;
+      }
+      try {
+        throws(2);
+      } catch (e) {
+        z = e;
+      }
+
+      return 'Blank';
+    }
+    await act(async () => {
+      root.render(<Test />);
+    });
+    expect(x).toBe(y);
+    expect(z).not.toBe(x);
   });
 });

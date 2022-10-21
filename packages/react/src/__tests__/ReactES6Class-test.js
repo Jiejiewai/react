@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -12,6 +12,7 @@
 let PropTypes;
 let React;
 let ReactDOM;
+let ReactDOMClient;
 let act;
 
 describe('ReactES6Class', () => {
@@ -29,9 +30,10 @@ describe('ReactES6Class', () => {
     PropTypes = require('prop-types');
     React = require('react');
     ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
     act = require('jest-react').act;
     container = document.createElement('div');
-    root = ReactDOM.createRoot(container);
+    root = ReactDOMClient.createRoot(container);
     attachedListener = null;
     renderedName = null;
     Inner = class extends React.Component {

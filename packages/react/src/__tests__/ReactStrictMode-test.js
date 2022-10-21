@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,6 +11,7 @@
 
 let React;
 let ReactDOM;
+let ReactDOMClient;
 let ReactDOMServer;
 let Scheduler;
 let PropTypes;
@@ -22,6 +23,7 @@ describe('ReactStrictMode', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
     ReactDOMServer = require('react-dom/server');
   });
 
@@ -65,6 +67,7 @@ describe('ReactStrictMode', () => {
     );
   });
 
+  // @gate __DEV__
   it('should invoke precommit lifecycle methods twice', () => {
     let log = [];
     let shouldComponentUpdate = false;
@@ -105,24 +108,15 @@ describe('ReactStrictMode', () => {
       container,
     );
 
-    if (__DEV__) {
-      expect(log).toEqual([
-        'constructor',
-        'constructor',
-        'getDerivedStateFromProps',
-        'getDerivedStateFromProps',
-        'render',
-        'render',
-        'componentDidMount',
-      ]);
-    } else {
-      expect(log).toEqual([
-        'constructor',
-        'getDerivedStateFromProps',
-        'render',
-        'componentDidMount',
-      ]);
-    }
+    expect(log).toEqual([
+      'constructor',
+      'constructor',
+      'getDerivedStateFromProps',
+      'getDerivedStateFromProps',
+      'render',
+      'render',
+      'componentDidMount',
+    ]);
 
     log = [];
     shouldComponentUpdate = true;
@@ -133,24 +127,15 @@ describe('ReactStrictMode', () => {
       </React.StrictMode>,
       container,
     );
-    if (__DEV__) {
-      expect(log).toEqual([
-        'getDerivedStateFromProps',
-        'getDerivedStateFromProps',
-        'shouldComponentUpdate',
-        'shouldComponentUpdate',
-        'render',
-        'render',
-        'componentDidUpdate',
-      ]);
-    } else {
-      expect(log).toEqual([
-        'getDerivedStateFromProps',
-        'shouldComponentUpdate',
-        'render',
-        'componentDidUpdate',
-      ]);
-    }
+    expect(log).toEqual([
+      'getDerivedStateFromProps',
+      'getDerivedStateFromProps',
+      'shouldComponentUpdate',
+      'shouldComponentUpdate',
+      'render',
+      'render',
+      'componentDidUpdate',
+    ]);
 
     log = [];
     shouldComponentUpdate = false;
@@ -162,19 +147,12 @@ describe('ReactStrictMode', () => {
       container,
     );
 
-    if (__DEV__) {
-      expect(log).toEqual([
-        'getDerivedStateFromProps',
-        'getDerivedStateFromProps',
-        'shouldComponentUpdate',
-        'shouldComponentUpdate',
-      ]);
-    } else {
-      expect(log).toEqual([
-        'getDerivedStateFromProps',
-        'shouldComponentUpdate',
-      ]);
-    }
+    expect(log).toEqual([
+      'getDerivedStateFromProps',
+      'getDerivedStateFromProps',
+      'shouldComponentUpdate',
+      'shouldComponentUpdate',
+    ]);
   });
 
   it('should invoke setState callbacks twice', () => {
@@ -361,6 +339,7 @@ describe('Concurrent Mode', () => {
 
     React = require('react');
     ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
     Scheduler = require('scheduler');
   });
 
@@ -406,7 +385,7 @@ describe('Concurrent Mode', () => {
     }
 
     const container = document.createElement('div');
-    const root = ReactDOM.createRoot(container);
+    const root = ReactDOMClient.createRoot(container);
     root.render(<StrictRoot />);
     expect(() => Scheduler.unstable_flushAll()).toErrorDev(
       [
@@ -468,7 +447,7 @@ Please update the following components: App`,
     }
 
     const container = document.createElement('div');
-    const root = ReactDOM.createRoot(container);
+    const root = ReactDOMClient.createRoot(container);
     root.render(<StrictRoot />);
 
     expect(() => {
@@ -544,7 +523,7 @@ Please update the following components: Parent`,
     }
 
     const container = document.createElement('div');
-    const root = ReactDOM.createRoot(container);
+    const root = ReactDOMClient.createRoot(container);
     root.render(<StrictRoot foo={true} />);
     expect(() =>
       Scheduler.unstable_flushAll(),
@@ -623,6 +602,7 @@ describe('symbol checks', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
   });
 
   it('should switch from StrictMode to a Fragment and reset state', () => {
@@ -735,6 +715,7 @@ describe('string refs', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
   });
 
   it('should warn within a strict tree', () => {
@@ -820,6 +801,7 @@ describe('context legacy', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
     PropTypes = require('prop-types');
   });
 
@@ -900,6 +882,7 @@ describe('context legacy', () => {
       jest.resetModules();
       React = require('react');
       ReactDOM = require('react-dom');
+      ReactDOMClient = require('react-dom/client');
     });
 
     if (ReactFeatureFlags.consoleManagedByDevToolsDuringStrictMode) {

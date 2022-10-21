@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -17,20 +17,20 @@ const Pending = 0;
 const Resolved = 1;
 const Rejected = 2;
 
-type PendingRecord = {|
+type PendingRecord = {
   status: 0,
   value: Wakeable,
-|};
+};
 
-type ResolvedRecord = {|
+type ResolvedRecord = {
   status: 1,
   value: mixed,
-|};
+};
 
-type RejectedRecord = {|
+type RejectedRecord = {
   status: 2,
   value: mixed,
-|};
+};
 
 type Record = PendingRecord | ResolvedRecord | RejectedRecord;
 
@@ -67,6 +67,7 @@ function readRecordValue(record: Record) {
 }
 
 export function Pool(options: mixed) {
+  // $FlowFixMe[invalid-constructor] Flow no longer supports calling new on functions
   this.pool = new PostgresPool(options);
   // Unique function per instance because it's used for cache identity.
   this.createRecordMap = function() {
@@ -76,12 +77,13 @@ export function Pool(options: mixed) {
 
 type NestedMap = Map<any, Record | NestedMap>;
 
+// $FlowFixMe[prop-missing] found when upgrading Flow
 Pool.prototype.query = function(query: string, values?: Array<mixed>) {
   const pool = this.pool;
   const outerMap = unstable_getCacheForType(this.createRecordMap);
 
   let innerMap: NestedMap = outerMap;
-  let key = query;
+  let key: mixed = query;
   if (values != null) {
     // If we have parameters, each becomes as a nesting layer for Maps.
     // We want to find (or create as needed) the innermost Map, and return that.

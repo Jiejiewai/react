@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -15,20 +15,20 @@ const Pending = 0;
 const Resolved = 1;
 const Rejected = 2;
 
-type PendingRecord = {|
+type PendingRecord = {
   status: 0,
   value: Wakeable,
-|};
+};
 
-type ResolvedRecord = {|
+type ResolvedRecord = {
   status: 1,
   value: mixed,
-|};
+};
 
-type RejectedRecord = {|
+type RejectedRecord = {
   status: 2,
   value: mixed,
-|};
+};
 
 type Record = PendingRecord | ResolvedRecord | RejectedRecord;
 
@@ -98,27 +98,36 @@ Response.prototype = {
   constructor: Response,
   arrayBuffer() {
     return readRecordValue(
+      // $FlowFixMe[object-this-reference] found when upgrading Flow
       this._arrayBuffer ||
+        // $FlowFixMe[object-this-reference] found when upgrading Flow
         (this._arrayBuffer = createRecordFromThenable(
+          // $FlowFixMe[object-this-reference] found when upgrading Flow
           this._response.arrayBuffer(),
         )),
     );
   },
   blob() {
     return readRecordValue(
+      // $FlowFixMe[object-this-reference] found when upgrading Flow
       this._blob ||
+        // $FlowFixMe[object-this-reference] found when upgrading Flow
         (this._blob = createRecordFromThenable(this._response.blob())),
     );
   },
   json() {
     return readRecordValue(
+      // $FlowFixMe[object-this-reference] found when upgrading Flow
       this._json ||
+        // $FlowFixMe[object-this-reference] found when upgrading Flow
         (this._json = createRecordFromThenable(this._response.json())),
     );
   },
   text() {
     return readRecordValue(
+      // $FlowFixMe[object-this-reference] found when upgrading Flow
       this._text ||
+        // $FlowFixMe[object-this-reference] found when upgrading Flow
         (this._text = createRecordFromThenable(this._response.text())),
     );
   },
@@ -154,6 +163,7 @@ export function fetch(url: string, options: mixed): Object {
   if (nativeResponse._reactResponse) {
     return nativeResponse._reactResponse;
   } else {
+    // $FlowFixMe[invalid-constructor] Flow no longer supports calling new on functions
     return (nativeResponse._reactResponse = new Response(nativeResponse));
   }
 }

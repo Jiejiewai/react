@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,7 +13,12 @@ import type {Fiber} from './ReactInternalTypes';
 import type {Lanes} from './ReactFiberLane.new';
 
 import getComponentNameFromFiber from 'react-reconciler/src/getComponentNameFromFiber';
-import {Placement, ChildDeletion, Forked} from './ReactFiberFlags';
+import {
+  Placement,
+  ChildDeletion,
+  Forked,
+  PlacementDEV,
+} from './ReactFiberFlags';
 import {
   getIteratorFn,
   REACT_ELEMENT_TYPE,
@@ -23,10 +28,7 @@ import {
 } from 'shared/ReactSymbols';
 import {ClassComponent, HostText, HostPortal, Fragment} from './ReactWorkTags';
 import isArray from 'shared/isArray';
-import {
-  warnAboutStringRefs,
-  enableLazyElements,
-} from 'shared/ReactFeatureFlags';
+import {warnAboutStringRefs} from 'shared/ReactFeatureFlags';
 import {checkPropStringCoercion} from 'shared/CheckStringCoercion';
 
 import {
@@ -78,6 +80,7 @@ if (__DEV__) {
       );
     }
 
+    // $FlowFixMe unable to narrow type from mixed to writable object
     child._store.validated = true;
 
     const componentName = getComponentNameFromFiber(returnFiber) || 'Component';
@@ -225,6 +228,7 @@ function coerceRef(
 }
 
 function throwOnInvalidObjectType(returnFiber: Fiber, newChild: Object) {
+  // $FlowFixMe[method-unbinding]
   const childString = Object.prototype.toString.call(newChild);
 
   throw new Error(
@@ -261,11 +265,18 @@ function resolveLazy(lazyType) {
   return init(payload);
 }
 
+type ChildReconciler = (
+  returnFiber: Fiber,
+  currentFirstChild: Fiber | null,
+  newChild: any,
+  lanes: Lanes,
+) => Fiber | null;
+
 // This wrapper function exists because I expect to clone the code in each path
 // to be able to optimize each path individually by branching early. This needs
 // a compiler or we can do it manually. Helpers that don't need this branching
 // live outside of this function.
-function ChildReconciler(shouldTrackSideEffects) {
+function createChildReconciler(shouldTrackSideEffects): ChildReconciler {
   function deleteChild(returnFiber: Fiber, childToDelete: Fiber): void {
     if (!shouldTrackSideEffects) {
       // Noop.
@@ -308,7 +319,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     // instead.
     const existingChildren: Map<string | number, Fiber> = new Map();
 
-    let existingChild = currentFirstChild;
+    let existingChild: null | Fiber = currentFirstChild;
     while (existingChild !== null) {
       if (existingChild.key !== null) {
         existingChildren.set(existingChild.key, existingChild);
@@ -346,7 +357,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       const oldIndex = current.index;
       if (oldIndex < lastPlacedIndex) {
         // This is a move.
-        newFiber.flags |= Placement;
+        newFiber.flags |= Placement | PlacementDEV;
         return lastPlacedIndex;
       } else {
         // This item can stay in place.
@@ -354,7 +365,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       }
     } else {
       // This is an insertion.
-      newFiber.flags |= Placement;
+      newFiber.flags |= Placement | PlacementDEV;
       return lastPlacedIndex;
     }
   }
@@ -363,7 +374,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     // This is simpler for the single child case. We only need to do a
     // placement for inserting new children.
     if (shouldTrackSideEffects && newFiber.alternate === null) {
-      newFiber.flags |= Placement;
+      newFiber.flags |= Placement | PlacementDEV;
     }
     return newFiber;
   }
@@ -414,8 +425,7 @@ function ChildReconciler(shouldTrackSideEffects) {
         // We need to do this after the Hot Reloading check above,
         // because hot reloading has different semantics than prod because
         // it doesn't resuspend. So we can't let the call below suspend.
-        (enableLazyElements &&
-          typeof elementType === 'object' &&
+        (typeof elementType === 'object' &&
           elementType !== null &&
           elementType.$$typeof === REACT_LAZY_TYPE &&
           resolveLazy(elementType) === current.type)
@@ -465,7 +475,7 @@ function ChildReconciler(shouldTrackSideEffects) {
   function updateFragment(
     returnFiber: Fiber,
     current: Fiber | null,
-    fragment: Iterable<*>,
+    fragment: Iterable<React$Node>,
     lanes: Lanes,
     key: null | string,
   ): Fiber {
@@ -530,11 +540,9 @@ function ChildReconciler(shouldTrackSideEffects) {
           return created;
         }
         case REACT_LAZY_TYPE: {
-          if (enableLazyElements) {
-            const payload = newChild._payload;
-            const init = newChild._init;
-            return createChild(returnFiber, init(payload), lanes);
-          }
+          const payload = newChild._payload;
+          const init = newChild._init;
+          return createChild(returnFiber, init(payload), lanes);
         }
       }
 
@@ -601,11 +609,9 @@ function ChildReconciler(shouldTrackSideEffects) {
           }
         }
         case REACT_LAZY_TYPE: {
-          if (enableLazyElements) {
-            const payload = newChild._payload;
-            const init = newChild._init;
-            return updateSlot(returnFiber, oldFiber, init(payload), lanes);
-          }
+          const payload = newChild._payload;
+          const init = newChild._init;
+          return updateSlot(returnFiber, oldFiber, init(payload), lanes);
         }
       }
 
@@ -663,17 +669,15 @@ function ChildReconciler(shouldTrackSideEffects) {
           return updatePortal(returnFiber, matchedFiber, newChild, lanes);
         }
         case REACT_LAZY_TYPE:
-          if (enableLazyElements) {
-            const payload = newChild._payload;
-            const init = newChild._init;
-            return updateFromMap(
-              existingChildren,
-              returnFiber,
-              newIdx,
-              init(payload),
-              lanes,
-            );
-          }
+          const payload = newChild._payload;
+          const init = newChild._init;
+          return updateFromMap(
+            existingChildren,
+            returnFiber,
+            newIdx,
+            init(payload),
+            lanes,
+          );
       }
 
       if (isArray(newChild) || getIteratorFn(newChild)) {
@@ -732,14 +736,10 @@ function ChildReconciler(shouldTrackSideEffects) {
           );
           break;
         case REACT_LAZY_TYPE:
-          if (enableLazyElements) {
-            const payload = child._payload;
-            const init = (child._init: any);
-            warnOnInvalidKey(init(payload), knownKeys, returnFiber);
-            break;
-          }
-        // We intentionally fallthrough here if enableLazyElements is not on.
-        // eslint-disable-next-lined no-fallthrough
+          const payload = child._payload;
+          const init = (child._init: any);
+          warnOnInvalidKey(init(payload), knownKeys, returnFiber);
+          break;
         default:
           break;
       }
@@ -750,7 +750,7 @@ function ChildReconciler(shouldTrackSideEffects) {
   function reconcileChildrenArray(
     returnFiber: Fiber,
     currentFirstChild: Fiber | null,
-    newChildren: Array<*>,
+    newChildren: Array<any>,
     lanes: Lanes,
   ): Fiber | null {
     // This algorithm can't optimize by searching from both ends since we
@@ -917,7 +917,7 @@ function ChildReconciler(shouldTrackSideEffects) {
   function reconcileChildrenIterator(
     returnFiber: Fiber,
     currentFirstChild: Fiber | null,
-    newChildrenIterable: Iterable<*>,
+    newChildrenIterable: Iterable<mixed>,
     lanes: Lanes,
   ): Fiber | null {
     // This is the same implementation as reconcileChildrenArray(),
@@ -1175,8 +1175,7 @@ function ChildReconciler(shouldTrackSideEffects) {
             // We need to do this after the Hot Reloading check above,
             // because hot reloading has different semantics than prod because
             // it doesn't resuspend. So we can't let the call below suspend.
-            (enableLazyElements &&
-              typeof elementType === 'object' &&
+            (typeof elementType === 'object' &&
               elementType !== null &&
               elementType.$$typeof === REACT_LAZY_TYPE &&
               resolveLazy(elementType) === child.type)
@@ -1302,17 +1301,15 @@ function ChildReconciler(shouldTrackSideEffects) {
             ),
           );
         case REACT_LAZY_TYPE:
-          if (enableLazyElements) {
-            const payload = newChild._payload;
-            const init = newChild._init;
-            // TODO: This function is supposed to be non-recursive.
-            return reconcileChildFibers(
-              returnFiber,
-              currentFirstChild,
-              init(payload),
-              lanes,
-            );
-          }
+          const payload = newChild._payload;
+          const init = newChild._init;
+          // TODO: This function is supposed to be non-recursive.
+          return reconcileChildFibers(
+            returnFiber,
+            currentFirstChild,
+            init(payload),
+            lanes,
+          );
       }
 
       if (isArray(newChild)) {
@@ -1363,8 +1360,10 @@ function ChildReconciler(shouldTrackSideEffects) {
   return reconcileChildFibers;
 }
 
-export const reconcileChildFibers = ChildReconciler(true);
-export const mountChildFibers = ChildReconciler(false);
+export const reconcileChildFibers: ChildReconciler = createChildReconciler(
+  true,
+);
+export const mountChildFibers: ChildReconciler = createChildReconciler(false);
 
 export function cloneChildFibers(
   current: Fiber | null,

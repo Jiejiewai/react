@@ -1,10 +1,11 @@
 /// <reference path="./testDefinitions/PropTypes.d.ts" />
 /// <reference path="./testDefinitions/React.d.ts" />
 /// <reference path="./testDefinitions/ReactDOM.d.ts" />
+/// <reference path="./testDefinitions/ReactDOMClient.d.ts" />
 /// <reference path="./testDefinitions/ReactInternalAct.d.ts" />
 
 /*!
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -12,6 +13,7 @@
 
 import React = require('react');
 import ReactDOM = require('react-dom');
+import ReactDOMClient = require('react-dom/client');
 import ReactDOMTestUtils = require('react-dom/test-utils');
 import PropTypes = require('prop-types');
 import internalAct = require('jest-react');
@@ -317,7 +319,7 @@ class ClassicRefs extends React.Component {
 describe('ReactTypeScriptClass', function() {
   beforeEach(function() {
     container = document.createElement('div');
-    root = ReactDOM.createRoot(container);
+    root = ReactDOMClient.createRoot(container);
     attachedListener = null;
     renderedName = null;
   });

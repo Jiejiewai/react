@@ -1,5 +1,5 @@
 ###
-Copyright (c) Facebook, Inc. and its affiliates.
+Copyright (c) Meta Platforms, Inc. and affiliates.
 
 This source code is licensed under the MIT license found in the
 LICENSE file in the root directory of this source tree.
@@ -8,6 +8,7 @@ LICENSE file in the root directory of this source tree.
 PropTypes = null
 React = null
 ReactDOM = null
+ReactDOMClient = null
 act = null
 
 describe 'ReactCoffeeScriptClass', ->
@@ -20,10 +21,11 @@ describe 'ReactCoffeeScriptClass', ->
   beforeEach ->
     React = require 'react'
     ReactDOM = require 'react-dom'
+    ReactDOMClient = require 'react-dom/client'
     act = require('jest-react').act
     PropTypes = require 'prop-types'
     container = document.createElement 'div'
-    root = ReactDOM.createRoot container
+    root = ReactDOMClient.createRoot container
     attachedListener = null
     renderedName = null
     InnerComponent = class extends React.Component
